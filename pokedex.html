@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PokéAtlas — Interactive Pokédex</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="pokemon_data.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Exo+2:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg: #0a0a12;
+    --bg2: #111120;
+    --bg3: #1a1a2e;
+    --panel: #16213e;
+    --panel2: #0f3460;
+    --accent: #e94560;
+    --accent2: #f5a623;
+    --accent3: #4fc3f7;
+    --text: #e8eaf6;
+    --text2: #9095b8;
+    --border: #2a2a4a;
+    --glow: rgba(233,69,96,0.35);
+
+    /* type colors */
+    --fire:#ff6b35; --water:#4fc3f7; --grass:#69cc8b; --electric:#f7d716;
+    --psychic:#ff79c6; --ice:#81d4fa; --dragon:#7c4dff; --dark:#455a64;
+    --fairy:#f48fb1; --normal:#b0bec5; --fighting:#ef5350; --poison:#ab47bc;
+    --ground:#a1887f; --rock:#8d6e63; --bug:#aed581; --ghost:#7e57c2;
+    --steel:#90a4ae; --flying:#80deea;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { font-size:14px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, #0a0a12 0%, #1a1a2e 50%, #0a0a12 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 30px var(--glow);
+  }
+
+  .logo {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--glow), 2px 2px 0 #000;
+    letter-spacing: 2px;
+  }
+
+  .logo span { color: var(--accent3); }
+
+  .header-stats {
+    display: flex;
+    gap: 24px;
+    font-size: 11px;
+    color: var(--text2);
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .header-stats b { color: var(--accent2); }
+
+  /* NAV TABS */
+  nav {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 0;
+    padding: 0 32px;
+    overflow-x: auto;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 14px 22px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .tab-btn:hover { color: var(--text); border-color: var(--border); }
+  .tab-btn.active { color: var(--accent); border-color: var(--accent); }
+
+  /* MAIN LAYOUT */
+  main { padding: 24px 32px; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* SECTION HEADERS */
+  .section-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    color: var(--accent3);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .section-sub {
+    color: var(--text2);
+    font-size: 12px;
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== CHARTS SECTION ===== */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 24px;
+  }
+
+  .chart-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chart-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+  }
+
+  .chart-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  .chart-card-title span {
+    color: var(--accent2);
+    margin-left: 8px;
+    font-size: 10px;
+  }
+
+  /* Controls */
+  .controls-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .ctrl-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 6px 14px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .ctrl-btn:hover, .ctrl-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .ctrl-select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .ctrl-select option { background: var(--bg3); }
+
+  /* LINE CHART */
+  #line-chart-svg text { font-family: 'Exo 2', sans-serif; }
+  .line-path { fill: none; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 6px currentColor); }
+  .dot { cursor: pointer; transition: r 0.2s; }
+  .dot:hover { r: 7; }
+
+  /* DONUT CHART */
+  #donut-svg text { font-family: 'Exo 2', sans-serif; }
+  .arc-slice { cursor: pointer; transition: opacity 0.2s, transform 0.2s; transform-origin: center; }
+  .arc-slice:hover { opacity: 0.85; transform: scale(1.04); }
+  .arc-slice.dimmed { opacity: 0.18; }
+
+  /* BAR CHART */
+  .bar-rect { cursor: pointer; transition: opacity 0.2s; }
+  .bar-rect:hover { opacity: 0.75; }
+
+  /* SCATTER */
+  .scatter-dot { cursor: pointer; transition: r 0.2s, opacity 0.2s; }
+  .scatter-dot:hover { r: 7 !important; opacity: 1 !important; }
+  .scatter-dot.dimmed { opacity: 0.08; }
+
+  /* TOOLTIP */
+  .chart-tooltip {
+    background: rgba(10,10,18,0.95);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 12px;
+    padding: 10px 14px;
+    pointer-events: none;
+    position: fixed;
+    z-index: 500;
+    display: none;
+    max-width: 220px;
+    box-shadow: 0 0 20px var(--glow);
+  }
+
+  .tooltip-name { font-weight: 700; font-size: 14px; color: var(--accent2); margin-bottom: 4px; text-transform: capitalize; }
+  .tooltip-row { display: flex; justify-content: space-between; gap: 16px; color: var(--text2); }
+  .tooltip-row b { color: var(--text); }
+
+  /* LEGEND */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--text2); cursor: pointer;
+    padding: 3px 7px; border-radius: 4px; border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .legend-item:hover { border-color: var(--border); background: var(--bg3); }
+  .legend-item.active { border-color: currentColor; color: var(--text); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ANIMATION CONTROLS */
+  .anim-controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px;
+  }
+  .anim-btn {
+    background: var(--panel2);
+    border: 1px solid var(--accent3);
+    border-radius: 6px;
+    color: var(--accent3);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 5px 12px;
+    transition: all 0.2s;
+  }
+  .anim-btn:hover { background: var(--accent3); color: var(--bg); }
+
+  .anim-progress {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .anim-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.5s linear;
+  }
+
+  .gen-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: var(--accent2);
+    min-width: 60px;
+  }
+
+  /* ===== POKEDEX SECTION ===== */
+  .dex-controls {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+
+  .search-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 13px;
+    padding: 10px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .search-box:focus { border-color: var(--accent3); }
+  .search-box::placeholder { color: var(--text2); }
+
+  .dex-filter {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+  }
+
+  /* TYPE PILLS */
+  .type-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .type-pill {
+    border-radius: 20px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 4px 12px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    opacity: 0.6;
+  }
+  .type-pill.active { opacity: 1; box-shadow: 0 0 10px currentColor; }
+
+  /* POKEMON GRID */
+  .pokemon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    max-height: calc(100vh - 340px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .pokemon-grid::-webkit-scrollbar { width: 4px; }
+  .pokemon-grid::-webkit-scrollbar-track { background: var(--bg); }
+  .pokemon-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .poke-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 12px 10px;
+    text-align: center;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .poke-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+    border-radius: 10px;
+  }
+
+  .poke-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .poke-card:hover::after { opacity: 1; }
+
+  .poke-card.selected {
+    border-color: var(--accent2);
+    box-shadow: 0 0 16px rgba(245,166,35,0.3);
+  }
+
+  .poke-num {
+    color: var(--text2);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    margin-bottom: 4px;
+  }
+
+  .poke-sprite {
+    width: 72px;
+    height: 72px;
+    image-rendering: pixelated;
+    margin: 4px auto;
+    display: block;
+  }
+
+  .poke-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: capitalize;
+    margin-bottom: 4px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .poke-types {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .type-badge {
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    text-transform: uppercase;
+    color: rgba(0,0,0,0.8);
+  }
+
+  .special-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 12px;
+  }
+
+  /* ===== DETAIL PANEL ===== */
+  .dex-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .detail-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: sticky;
+    top: 80px;
+    transition: all 0.3s;
+  }
+
+  .detail-panel.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    color: var(--text2);
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-panel.empty .hint {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-align: center;
+    opacity: 0.5;
+    line-height: 2;
+  }
+
+  .detail-header {
+    padding: 20px;
+    position: relative;
+  }
+
+  .detail-header-bg {
+    position: absolute;
+    inset: 0;
+    opacity: 0.08;
+    background: radial-gradient(circle at 80% 50%, currentColor 0%, transparent 70%);
+  }
+
+  .detail-num {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+
+  .detail-name {
+    font-size: 26px;
+    font-weight: 900;
+    text-transform: capitalize;
+    letter-spacing: 1px;
+  }
+
+  .detail-genus {
+    color: var(--text2);
+    font-size: 12px;
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  .detail-sprite-wrap {
+    text-align: center;
+    padding: 16px;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .detail-sprite {
+    width: 120px;
+    height: 120px;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,0.5));
+    transition: transform 0.3s;
+  }
+
+  .detail-sprite:hover { transform: scale(1.1) rotate(-2deg); }
+
+  .detail-body { padding: 16px 20px; }
+
+  .detail-types {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .detail-type-badge {
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 5px 16px;
+    text-transform: uppercase;
+    color: rgba(0,0,0,0.85);
+  }
+
+  .detail-desc {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text2);
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+    font-style: italic;
+  }
+
+  /* STATS BARS */
+  .stat-row {
+    display: grid;
+    grid-template-columns: 70px 36px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text2);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .stat-val {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: right;
+  }
+
+  .stat-bar-bg {
+    background: var(--bg);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+  }
+
+  .stat-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s cubic-bezier(0.23,1,0.32,1);
+  }
+
+  .stat-total-row {
+    display: grid;
+    grid-template-columns: 70px 36px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .stat-total-label {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .detail-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 10px;
+    margin-top: 16px;
+  }
+
+  .ability-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .ability-chip {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    padding: 4px 10px;
+    text-transform: capitalize;
+    color: var(--text2);
+  }
+
+  .ability-chip.hidden {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .detail-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .info-cell {
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .info-cell-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .info-cell-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: capitalize;
+  }
+
+  /* COMPARISON */
+  .compare-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+
+  .compare-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .compare-slots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .compare-slot {
+    background: var(--bg3);
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .compare-slot.filled {
+    border-style: solid;
+    border-color: var(--accent2);
+    cursor: default;
+  }
+
+  .compare-slot:not(.filled):hover { border-color: var(--accent3); }
+
+  .compare-slot-hint {
+    color: var(--text2);
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  .compare-slot img {
+    width: 72px;
+    height: 72px;
+    image-rendering: pixelated;
+  }
+
+  .compare-slot-name {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: capitalize;
+    margin-top: 4px;
+  }
+
+  .compare-stat-grid { display: flex; flex-direction: column; gap: 8px; }
+
+  .compare-stat-row {
+    display: grid;
+    grid-template-columns: 1fr 60px 60px 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .compare-bar-wrap { position: relative; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .compare-bar { height: 100%; border-radius: 4px; transition: width 0.8s; }
+  .compare-bar.left { float: right; }
+
+  .compare-stat-label { font-size: 10px; color: var(--text2); text-align: center; font-weight: 700; text-transform: uppercase; }
+  .compare-val { font-size: 13px; font-weight: 700; text-align: center; }
+  .compare-val.winner { color: var(--accent2); }
+
+  /* CLEAR BTN */
+  .clear-btn {
+    background: none;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 5px 12px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .clear-btn:hover { background: var(--accent); color: #fff; }
+
+  /* LOADING SPINNER */
+  .sprite-loading {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px auto;
+    color: var(--text2);
+    font-size: 24px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* GRID AXIS */
+  .axis text { font-family: 'Exo 2', sans-serif; font-size: 11px; fill: var(--text2); }
+  .axis line, .axis path { stroke: var(--border); }
+  .grid line { stroke: var(--border); stroke-opacity: 0.5; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .dex-layout { grid-template-columns: 1fr; }
+    .detail-panel { position: static; }
+    .dex-controls { grid-template-columns: 1fr; }
+  }
+
+  .poke-card-glow {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    border-radius: 10px;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .poke-card:hover .poke-card-glow { opacity: 1; }
+
+  .empty-grid {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text2);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    grid-column: 1 / -1;
+  }
+
+  /* ===== compare select mode ===== */
+  .poke-card.compare-selecting {
+    cursor: crosshair !important;
+    border-color: var(--accent3) !important;
+  }
+  .compare-selecting-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: rgba(79,195,247,0.08);
+    border-bottom: 2px solid var(--accent3);
+    padding: 8px 32px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent3);
+    letter-spacing: 1px;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .compare-selecting-overlay.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Poké<span>Atlas</span></div>
+  <div class="header-stats">
+    <div>Total <b id="hdr-total">1025</b></div>
+    <div>Generations <b>I – IX</b></div>
+    <div>Types <b>18</b></div>
+    <div>Legendary <b id="hdr-legend">?</b></div>
+  </div>
+</header>
+
+<div class="compare-selecting-overlay" id="compare-overlay">
+  <span>🎯</span>
+  <span>Click a Pokémon to add to comparison slot <span id="compare-slot-num">1</span></span>
+  <button class="clear-btn" onclick="cancelCompare()">Cancel</button>
+</div>
+
+<nav>
+  <button class="tab-btn active" onclick="switchTab('charts')">📊 Analytics</button>
+  <button class="tab-btn" onclick="switchTab('dex')">🔎 Pokédex</button>
+  <button class="tab-btn" onclick="switchTab('compare')">⚔️ Compare</button>
+</nav>
+
+<main>
+  <!-- CHARTS SECTION -->
+  <div id="section-charts" class="section active">
+    <div class="section-title">Data Analytics</div>
+    <div class="section-sub">Multidimensional Pokémon data visualized across all 9 generations</div>
+
+    <div class="charts-grid">
+      <!-- Line chart: Pokémon per generation -->
+      <div class="chart-card" style="grid-column: 1 / -1;">
+        <div class="chart-card-title">Pokémon Added Per Generation <span>— Animated Timeline</span></div>
+        <div class="controls-row">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">SORT BY:</span>
+          <button class="ctrl-btn active" onclick="setLineSort('gen',this)">Generation</button>
+          <button class="ctrl-btn" onclick="setLineSort('count',this)">Count ↓</button>
+          <button class="ctrl-btn" onclick="setLineSort('alpha',this)">Alphabetical</button>
+          <span style="margin-left:auto;font-size:11px;color:var(--text2);">SHOW:</span>
+          <button class="ctrl-btn active" onclick="toggleLineSeries('all',this)">All</button>
+          <button class="ctrl-btn" onclick="toggleLineSeries('legendary',this)">Legendary</button>
+          <button class="ctrl-btn" onclick="toggleLineSeries('mythical',this)">Mythical</button>
+        </div>
+        <div id="line-chart"></div>
+        <div class="anim-controls">
+          <button class="anim-btn" id="anim-play-btn" onclick="toggleAnim()">▶</button>
+          <div class="anim-progress"><div class="anim-bar" id="anim-bar" style="width:0%"></div></div>
+          <div class="gen-label" id="anim-gen-label">GEN I</div>
+        </div>
+      </div>
+
+      <!-- Donut: Type distribution -->
+      <div class="chart-card">
+        <div class="chart-card-title">Type Distribution <span>— Click to filter</span></div>
+        <div id="donut-chart"></div>
+        <div class="legend" id="donut-legend"></div>
+      </div>
+
+      <!-- Bar: Avg stats by type -->
+      <div class="chart-card">
+        <div class="chart-card-title">Avg Base Stats by Type <span>— Sortable</span></div>
+        <div class="controls-row">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">STAT:</span>
+          <select class="ctrl-select" id="bar-stat-sel" onchange="renderBarChart()">
+            <option value="base_stat_total">Total</option>
+            <option value="attack">Attack</option>
+            <option value="defense">Defense</option>
+            <option value="sp_attack">Sp. Atk</option>
+            <option value="sp_defense">Sp. Def</option>
+            <option value="speed">Speed</option>
+            <option value="hp">HP</option>
+          </select>
+          <button class="ctrl-btn active" id="bar-sort-val" onclick="setBarSort('value',this)">By Value</button>
+          <button class="ctrl-btn" id="bar-sort-alph" onclick="setBarSort('alpha',this)">A–Z</button>
+        </div>
+        <div id="bar-chart"></div>
+      </div>
+
+      <!-- Scatter: Attack vs Speed -->
+      <div class="chart-card" style="grid-column: 1 / -1;">
+        <div class="chart-card-title">Stat Scatter Plot <span>— Hover for details, click to view Pokédex entry</span></div>
+        <div class="controls-row">
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">X AXIS:</span>
+          <select class="ctrl-select" id="scatter-x" onchange="renderScatter()">
+            <option value="attack">Attack</option>
+            <option value="defense">Defense</option>
+            <option value="sp_attack">Sp. Atk</option>
+            <option value="sp_defense">Sp. Def</option>
+            <option value="speed">Speed</option>
+            <option value="hp">HP</option>
+            <option value="base_stat_total">BST</option>
+          </select>
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">Y AXIS:</span>
+          <select class="ctrl-select" id="scatter-y" onchange="renderScatter()">
+            <option value="speed" selected>Speed</option>
+            <option value="attack">Attack</option>
+            <option value="defense">Defense</option>
+            <option value="sp_attack">Sp. Atk</option>
+            <option value="sp_defense">Sp. Def</option>
+            <option value="hp">HP</option>
+            <option value="base_stat_total">BST</option>
+          </select>
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">COLOR BY:</span>
+          <select class="ctrl-select" id="scatter-color" onchange="renderScatter()">
+            <option value="type">Primary Type</option>
+            <option value="gen">Generation</option>
+            <option value="tier">Stat Tier</option>
+          </select>
+          <span style="font-size:11px;color:var(--text2);font-weight:600;">FILTER GEN:</span>
+          <select class="ctrl-select" id="scatter-gen" onchange="renderScatter()">
+            <option value="all">All</option>
+            <option value="I">Gen I</option>
+            <option value="II">Gen II</option>
+            <option value="III">Gen III</option>
+            <option value="IV">Gen IV</option>
+            <option value="V">Gen V</option>
+            <option value="VI">Gen VI</option>
+            <option value="VII">Gen VII</option>
+            <option value="VIII">Gen VIII</option>
+            <option value="IX">Gen IX</option>
+          </select>
+        </div>
+        <div id="scatter-chart"></div>
+        <div class="legend" id="scatter-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEX SECTION -->
+  <div id="section-dex" class="section">
+    <div class="section-title">Pokédex</div>
+    <div class="section-sub">Click any Pokémon to view its full entry • Use filters to explore</div>
+
+    <div class="dex-controls">
+      <input type="text" class="search-box" id="dex-search" placeholder="Search by name or #..." oninput="filterDex()">
+      <select class="dex-filter" id="dex-gen" onchange="filterDex()">
+        <option value="all">All Generations</option>
+        <option value="I">Gen I</option><option value="II">Gen II</option>
+        <option value="III">Gen III</option><option value="IV">Gen IV</option>
+        <option value="V">Gen V</option><option value="VI">Gen VI</option>
+        <option value="VII">Gen VII</option><option value="VIII">Gen VIII</option>
+        <option value="IX">Gen IX</option>
+      </select>
+      <select class="dex-filter" id="dex-tier" onchange="filterDex()">
+        <option value="all">All Tiers</option>
+        <option value="Weak">Weak</option>
+        <option value="Below Average">Below Average</option>
+        <option value="Average">Average</option>
+        <option value="Strong">Strong</option>
+        <option value="Legendary/Pseudo">Legendary</option>
+      </select>
+      <select class="dex-filter" id="dex-sort" onchange="filterDex()">
+        <option value="num">By #</option>
+        <option value="name">By Name</option>
+        <option value="bst">By BST ↓</option>
+        <option value="gen">By Generation</option>
+      </select>
+    </div>
+
+    <div class="type-filter-row" id="type-filter-row"></div>
+
+    <div class="dex-layout">
+      <div>
+        <div class="pokemon-grid" id="pokemon-grid"></div>
+      </div>
+      <div class="detail-panel empty" id="detail-panel">
+        <div style="font-size:48px;">⚡</div>
+        <div class="hint">SELECT A POKÉMON<br>TO VIEW DETAILS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARE SECTION -->
+  <div id="section-compare" class="section">
+    <div class="section-title">Pokémon Comparison</div>
+    <div class="section-sub">Compare two Pokémon side-by-side across all stats</div>
+
+    <div class="compare-panel">
+      <div class="compare-header">
+        <div class="chart-card-title">Select Two Pokémon</div>
+        <button class="clear-btn" onclick="clearComparison()">Clear All</button>
+      </div>
+      <div class="compare-slots">
+        <div class="compare-slot" id="compare-slot-0" onclick="startCompareSelect(0)">
+          <div style="font-size:32px;">➕</div>
+          <div class="compare-slot-hint">Click to select Pokémon 1</div>
+        </div>
+        <div class="compare-slot" id="compare-slot-1" onclick="startCompareSelect(1)">
+          <div style="font-size:32px;">➕</div>
+          <div class="compare-slot-hint">Click to select Pokémon 2</div>
+        </div>
+      </div>
+
+      <!-- Mini grid for selection -->
+      <div id="compare-mini-search-wrap" style="margin-bottom:16px; display:none;">
+        <input type="text" class="search-box" id="compare-search" placeholder="Search Pokémon..." oninput="filterMiniGrid()" style="margin-bottom:10px;">
+        <div class="pokemon-grid" id="compare-mini-grid" style="max-height:300px;"></div>
+      </div>
+
+      <div id="compare-stats-area"></div>
+    </div>
+  </div>
+</main>
+
+<div class="chart-tooltip" id="tooltip"></div>
+
+<script>
+// ============================================================
+//  DATA & GLOBALS
+// ============================================================
+const DATA = POKEMON_DATA;
+
+const TYPE_COLORS = {
+  fire:'#ff6b35', water:'#4fc3f7', grass:'#69cc8b', electric:'#f7d716',
+  psychic:'#ff79c6', ice:'#81d4fa', dragon:'#7c4dff', dark:'#607d8b',
+  fairy:'#f48fb1', normal:'#b0bec5', fighting:'#ef5350', poison:'#ab47bc',
+  ground:'#a1887f', rock:'#8d6e63', bug:'#aed581', ghost:'#7e57c2',
+  steel:'#90a4ae', flying:'#80deea'
+};
+
+const GEN_COLORS = {
+  'I':'#e94560','II':'#f5a623','III':'#69cc8b','IV':'#4fc3f7',
+  'V':'#ab47bc','VI':'#ff79c6','VII':'#81d4fa','VIII':'#a1887f','IX':'#8d6e63'
+};
+
+const STAT_COLORS = {
+  hp:'#f44336', attack:'#ff9800', defense:'#ffeb3b',
+  sp_attack:'#9c27b0', sp_defense:'#2196f3', speed:'#4caf50'
+};
+
+const GENS = ['I','II','III','IV','V','VI','VII','VIII','IX'];
+const TYPES = Object.keys(TYPE_COLORS);
+
+// header
+document.getElementById('hdr-legend').textContent =
+  DATA.filter(d=>d.is_legendary||d.is_mythical).length;
+
+// ============================================================
+//  TABS
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('section-'+tab).classList.add('active');
+  if(tab==='dex' && !dexBuilt) buildDex();
+  if(tab==='charts' && !chartsBuilt) buildCharts();
+  if(tab==='compare') buildMiniGrid();
+}
+
+// ============================================================
+//  CHARTS
+// ============================================================
+let chartsBuilt = false;
+let lineSortMode = 'gen';
+let lineSeriesMode = 'all';
+let barSortMode = 'value';
+let animPlaying = false;
+let animTimer = null;
+let animGenIdx = 8;
+
+function buildCharts() {
+  chartsBuilt = true;
+  renderLineChart();
+  renderDonutChart();
+  renderBarChart();
+  renderScatter();
+}
+
+// --- LINE CHART ---
+function genCount(gen, mode) {
+  return DATA.filter(d=>{
+    if(mode==='legendary') return d.generation===gen && d.is_legendary;
+    if(mode==='mythical') return d.generation===gen && d.is_mythical;
+    return d.generation===gen;
+  }).length;
+}
+
+function setLineSort(mode, btn) {
+  lineSortMode = mode;
+  document.querySelectorAll('.ctrl-btn[onclick^="setLineSort"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLineChart();
+}
+
+function toggleLineSeries(mode, btn) {
+  lineSeriesMode = mode;
+  document.querySelectorAll('.ctrl-btn[onclick^="toggleLineSeries"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLineChart();
+}
+
+function renderLineChart(animUpToGen=-1) {
+  const container = document.getElementById('line-chart');
+  container.innerHTML = '';
+  const W = container.parentElement.clientWidth - 40;
+  const H = 260;
+  const margin = {top:20, right:20, bottom:40, left:50};
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  let genList = [...GENS];
+  let counts = genList.map(g=>({gen:g, count:genCount(g, lineSeriesMode)}));
+
+  if(lineSortMode==='count') counts.sort((a,b)=>b.count-a.count);
+  else if(lineSortMode==='alpha') counts.sort((a,b)=>a.gen.localeCompare(b.gen));
+
+  const visibleCounts = animUpToGen>=0
+    ? counts.filter((_,i)=>i<=animUpToGen)
+    : counts;
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', W).attr('height', H);
+
+  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  const x = d3.scalePoint().domain(counts.map(d=>d.gen)).range([0,w]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, d3.max(counts,d=>d.count)*1.15]).range([h,0]);
+
+  // grid
+  g.append('g').attr('class','grid')
+    .call(d3.axisLeft(y).tickSize(-w).ticks(5).tickFormat(''))
+    .call(g=>g.select('.domain').remove());
+
+  // axes
+  g.append('g').attr('class','axis')
+    .attr('transform',`translate(0,${h})`).call(d3.axisBottom(x));
+  g.append('g').attr('class','axis').call(d3.axisLeft(y).ticks(5));
+
+  // gradient area fill
+  const defs = svg.append('defs');
+  const grad = defs.append('linearGradient').attr('id','line-grad').attr('gradientUnits','userSpaceOnUse').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',h+margin.top);
+  grad.append('stop').attr('offset','0%').attr('stop-color','#e94560').attr('stop-opacity',0.35);
+  grad.append('stop').attr('offset','100%').attr('stop-color','#e94560').attr('stop-opacity',0.0);
+
+  if(visibleCounts.length>1) {
+    const area = d3.area()
+      .x(d=>x(d.gen)).y0(h).y1(d=>y(d.count))
+      .curve(d3.curveMonotoneX);
+
+    g.append('path').datum(visibleCounts)
+      .attr('fill','url(#line-grad)').attr('d',area);
+
+    const line = d3.line()
+      .x(d=>x(d.gen)).y(d=>y(d.count))
+      .curve(d3.curveMonotoneX);
+
+    const path = g.append('path').datum(visibleCounts)
+      .attr('class','line-path').attr('stroke','#e94560').attr('d',line);
+
+    // animate stroke
+    const len = path.node().getTotalLength();
+    path.attr('stroke-dasharray',len).attr('stroke-dashoffset',len)
+      .transition().duration(600).ease(d3.easeQuadOut).attr('stroke-dashoffset',0);
+  }
+
+  // dots
+  const tooltip = document.getElementById('tooltip');
+  g.selectAll('.dot').data(visibleCounts).join('circle')
+    .attr('class','dot')
+    .attr('cx',d=>x(d.gen)).attr('cy',d=>y(d.count))
+    .attr('r', d => animUpToGen>=0 && d.gen===visibleCounts[visibleCounts.length-1]?.gen ? 8 : 5)
+    .attr('fill', d => GEN_COLORS[d.gen])
+    .attr('stroke','#0a0a12').attr('stroke-width',2)
+    .on('mousemove',(event,d)=>{
+      tooltip.style.display='block';
+      tooltip.style.left=(event.clientX+12)+'px';
+      tooltip.style.top=(event.clientY-10)+'px';
+      tooltip.innerHTML=`<div class="tooltip-name">Generation ${d.gen}</div>
+        <div class="tooltip-row"><span>${lineSeriesMode==='all'?'Total':lineSeriesMode}</span><b>${d.count}</b></div>`;
+    })
+    .on('mouseleave',()=>tooltip.style.display='none');
+
+  // value labels
+  g.selectAll('.line-label').data(visibleCounts).join('text')
+    .attr('x',d=>x(d.gen)).attr('y',d=>y(d.count)-12)
+    .attr('text-anchor','middle').attr('fill','var(--accent2)')
+    .attr('font-size','11').attr('font-weight','700')
+    .attr('font-family','Exo 2, sans-serif')
+    .text(d=>d.count)
+    .attr('opacity',0).transition().delay((_,i)=>i*60).attr('opacity',1);
+}
+
+// Animation
+function toggleAnim() {
+  animPlaying = !animPlaying;
+  document.getElementById('anim-play-btn').textContent = animPlaying ? '⏸' : '▶';
+  if(animPlaying) runAnim();
+  else clearTimeout(animTimer);
+}
+
+function runAnim() {
+  if(!animPlaying) return;
+  animGenIdx = (animGenIdx + 1) % GENS.length;
+  const pct = ((animGenIdx+1)/GENS.length*100).toFixed(0);
+  document.getElementById('anim-bar').style.width = pct+'%';
+  document.getElementById('anim-gen-label').textContent = 'GEN '+GENS[animGenIdx];
+  renderLineChart(animGenIdx);
+  animTimer = setTimeout(runAnim, 800);
+}
+
+// --- DONUT CHART ---
+let donutSelected = null;
+
+function renderDonutChart() {
+  const container = document.getElementById('donut-chart');
+  container.innerHTML = '';
+  const size = Math.min(container.parentElement.clientWidth - 40, 300);
+  const R = size/2, IR = R*0.42;
+
+  // count types (both type_1 and type_2)
+  const typeCounts = {};
+  TYPES.forEach(t=>typeCounts[t]=0);
+  DATA.forEach(d=>{
+    if(d.type_1 && typeCounts[d.type_1]!==undefined) typeCounts[d.type_1]++;
+    if(d.type_2 && typeCounts[d.type_2]!==undefined) typeCounts[d.type_2]++;
+  });
+
+  const pie = d3.pie().value(d=>d[1]).sort(null);
+  const arcs = pie(Object.entries(typeCounts));
+  const arc = d3.arc().innerRadius(IR).outerRadius(R-4);
+  const arcHover = d3.arc().innerRadius(IR).outerRadius(R+8);
+
+  const svg = d3.select(container).append('svg')
+    .attr('width',size).attr('height',size);
+  const g = svg.append('g').attr('transform',`translate(${R},${R})`);
+
+  const tooltip = document.getElementById('tooltip');
+
+  const slices = g.selectAll('.arc-slice').data(arcs).join('path')
+    .attr('class','arc-slice')
+    .attr('fill',d=>TYPE_COLORS[d.data[0]] || '#888')
+    .attr('d',arc)
+    .on('click',(_,d)=>{
+      const t = d.data[0];
+      donutSelected = donutSelected===t ? null : t;
+      slices.classed('dimmed', e => donutSelected && e.data[0]!==donutSelected);
+      document.querySelectorAll('.legend-item').forEach(li=>{
+        li.classList.toggle('active', li.dataset.type===donutSelected);
+      });
+      // update scatter if visible
+      if(chartsBuilt) renderScatter();
+    })
+    .on('mousemove',(event,d)=>{
+      tooltip.style.display='block';
+      tooltip.style.left=(event.clientX+12)+'px';
+      tooltip.style.top=(event.clientY-10)+'px';
+      const pct = (d.data[1]/d3.sum(Object.values(typeCounts))*100).toFixed(1);
+      tooltip.innerHTML=`<div class="tooltip-name">${d.data[0].toUpperCase()}</div>
+        <div class="tooltip-row"><span>Count</span><b>${d.data[1]}</b></div>
+        <div class="tooltip-row"><span>Share</span><b>${pct}%</b></div>`;
+    })
+    .on('mousemove.hover',function(event,d){
+      d3.select(this).transition().duration(150).attr('d',arcHover);
+    })
+    .on('mouseleave',function(){
+      tooltip.style.display='none';
+      d3.select(this).transition().duration(200).attr('d',arc);
+    });
+
+  slices.transition().duration(600).attrTween('d', d=>{
+    const i = d3.interpolate({startAngle:d.startAngle,endAngle:d.startAngle}, d);
+    return t=>arc(i(t));
+  });
+
+  // center text
+  g.append('text').attr('text-anchor','middle').attr('dy','-0.1em')
+    .attr('fill','var(--text)').attr('font-size','22').attr('font-weight','700')
+    .attr('font-family','Exo 2').text(DATA.length);
+  g.append('text').attr('text-anchor','middle').attr('dy','1.3em')
+    .attr('fill','var(--text2)').attr('font-size','11')
+    .attr('font-family','Exo 2').text('Pokémon');
+
+  // Legend
+  const legend = document.getElementById('donut-legend');
+  legend.innerHTML='';
+  Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]).forEach(([t,c])=>{
+    const item = document.createElement('div');
+    item.className='legend-item';
+    item.dataset.type=t;
+    item.innerHTML=`<div class="legend-dot" style="background:${TYPE_COLORS[t]}"></div>${t}`;
+    item.onclick=()=>{
+      donutSelected = donutSelected===t?null:t;
+      slices.classed('dimmed', e=>donutSelected && e.data[0]!==donutSelected);
+      document.querySelectorAll('.legend-item').forEach(li=>li.classList.toggle('active',li.dataset.type===donutSelected));
+    };
+    legend.appendChild(item);
+  });
+}
+
+// --- BAR CHART ---
+function setBarSort(mode, btn) {
+  barSortMode = mode;
+  document.querySelectorAll('.ctrl-btn[id^="bar-sort"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBarChart();
+}
+
+function renderBarChart() {
+  const container = document.getElementById('bar-chart');
+  container.innerHTML='';
+  const stat = document.getElementById('bar-stat-sel').value;
+  const W = container.parentElement.clientWidth - 40;
+  const H = 260;
+  const margin = {top:10, right:20, bottom:80, left:50};
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  let typeAvg = TYPES.map(t=>{
+    const pokes = DATA.filter(d=>d.type_1===t||d.type_2===t);
+    return {type:t, val:pokes.length?d3.mean(pokes,d=>d[stat]):0};
+  });
+
+  if(barSortMode==='value') typeAvg.sort((a,b)=>b.val-a.val);
+  else typeAvg.sort((a,b)=>a.type.localeCompare(b.type));
+
+  const svg = d3.select(container).append('svg').attr('width',W).attr('height',H);
+  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleBand().domain(typeAvg.map(d=>d.type)).range([0,w]).padding(0.2);
+  const y = d3.scaleLinear().domain([0,d3.max(typeAvg,d=>d.val)*1.15]).range([h,0]);
+
+  g.append('g').attr('class','grid').call(d3.axisLeft(y).tickSize(-w).ticks(5).tickFormat('')).call(g=>g.select('.domain').remove());
+  g.append('g').attr('class','axis').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x))
+    .selectAll('text').attr('transform','rotate(-40)').style('text-anchor','end').attr('font-size','10');
+  g.append('g').attr('class','axis').call(d3.axisLeft(y).ticks(5));
+
+  const tooltip = document.getElementById('tooltip');
+
+  g.selectAll('.bar-rect').data(typeAvg).join('rect')
+    .attr('class','bar-rect')
+    .attr('x',d=>x(d.type)).attr('width',x.bandwidth())
+    .attr('y',h).attr('height',0)
+    .attr('fill',d=>TYPE_COLORS[d.type])
+    .attr('rx',3)
+    .on('mousemove',(event,d)=>{
+      tooltip.style.display='block';
+      tooltip.style.left=(event.clientX+12)+'px';
+      tooltip.style.top=(event.clientY-10)+'px';
+      tooltip.innerHTML=`<div class="tooltip-name">${d.type.toUpperCase()}</div>
+        <div class="tooltip-row"><span>${stat.replace(/_/g,' ')}</span><b>${d.val.toFixed(1)}</b></div>`;
+    })
+    .on('mouseleave',()=>tooltip.style.display='none')
+    .transition().duration(500).delay((_,i)=>i*25)
+    .attr('y',d=>y(d.val)).attr('height',d=>h-y(d.val));
+}
+
+// --- SCATTER ---
+function renderScatter() {
+  const container = document.getElementById('scatter-chart');
+  container.innerHTML='';
+  const xStat = document.getElementById('scatter-x').value;
+  const yStat = document.getElementById('scatter-y').value;
+  const colorBy = document.getElementById('scatter-color').value;
+  const genFilter = document.getElementById('scatter-gen').value;
+
+  const W = container.parentElement.clientWidth - 40;
+  const H = 340;
+  const margin = {top:20, right:20, bottom:50, left:55};
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  let filtered = genFilter==='all' ? DATA : DATA.filter(d=>d.generation===genFilter);
+
+  const svg = d3.select(container).append('svg').attr('width',W).attr('height',H);
+  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleLinear().domain([0,d3.max(DATA,d=>d[xStat])]).range([0,w]).nice();
+  const y = d3.scaleLinear().domain([0,d3.max(DATA,d=>d[yStat])]).range([h,0]).nice();
+
+  g.append('g').attr('class','grid').call(d3.axisLeft(y).tickSize(-w).ticks(6).tickFormat('')).call(g=>g.select('.domain').remove());
+  g.append('g').attr('class','grid').call(d3.axisBottom(x).tickSize(h).ticks(6).tickFormat('')).attr('transform','translate(0,0)').call(g=>g.select('.domain').remove());
+  g.append('g').attr('class','axis').attr('transform',`translate(0,${h})`).call(d3.axisBottom(x).ticks(6));
+  g.append('g').attr('class','axis').call(d3.axisLeft(y).ticks(6));
+
+  // axis labels
+  g.append('text').attr('text-anchor','middle').attr('x',w/2).attr('y',h+42)
+    .attr('fill','var(--text2)').attr('font-size','12').attr('font-family','Exo 2')
+    .text(xStat.replace(/_/g,' ').toUpperCase());
+  g.append('text').attr('text-anchor','middle').attr('transform',`rotate(-90)`).attr('x',-h/2).attr('y',-42)
+    .attr('fill','var(--text2)').attr('font-size','12').attr('font-family','Exo 2')
+    .text(yStat.replace(/_/g,' ').toUpperCase());
+
+  const getColor = d=>{
+    if(colorBy==='type') return TYPE_COLORS[d.type_1]||'#888';
+    if(colorBy==='gen') return GEN_COLORS[d.generation]||'#888';
+    const tierMap = {'Weak (<300)':'#607d8b','Below Average (300-399)':'#4caf50','Average (400-499)':'#f5a623','Strong (500-599)':'#e94560','Legendary/Pseudo (600+)':'#ab47bc'};
+    return tierMap[d.stat_tier]||'#888';
+  };
+
+  const tooltip = document.getElementById('tooltip');
+
+  g.selectAll('.scatter-dot').data(filtered).join('circle')
+    .attr('class','scatter-dot')
+    .attr('cx',d=>x(d[xStat])).attr('cy',d=>y(d[yStat]))
+    .attr('r', 4)
+    .attr('fill',d=>getColor(d))
+    .attr('stroke','rgba(0,0,0,0.4)').attr('stroke-width',1)
+    .attr('opacity',0.75)
+    .on('mousemove',(event,d)=>{
+      tooltip.style.display='block';
+      tooltip.style.left=(event.clientX+12)+'px';
+      tooltip.style.top=(event.clientY-10)+'px';
+      tooltip.innerHTML=`<div class="tooltip-name">${d.name}</div>
+        <div class="tooltip-row"><span>${xStat.replace(/_/g,' ')}</span><b>${d[xStat]}</b></div>
+        <div class="tooltip-row"><span>${yStat.replace(/_/g,' ')}</span><b>${d[yStat]}</b></div>
+        <div class="tooltip-row"><span>Type</span><b>${d.type_1}${d.type_2?'/'+d.type_2:''}</b></div>
+        <div class="tooltip-row"><span>BST</span><b>${d.base_stat_total}</b></div>`;
+    })
+    .on('mouseleave',()=>tooltip.style.display='none')
+    .on('click',(event,d)=>{
+      switchTabDirect('dex');
+      setTimeout(()=>openPokemon(d),200);
+    });
+
+  // build legend
+  const legend = document.getElementById('scatter-legend');
+  legend.innerHTML='';
+  if(colorBy==='type') {
+    TYPES.forEach(t=>{
+      const item = document.createElement('div');
+      item.className='legend-item';
+      item.innerHTML=`<div class="legend-dot" style="background:${TYPE_COLORS[t]}"></div>${t}`;
+      legend.appendChild(item);
+    });
+  } else if(colorBy==='gen') {
+    GENS.forEach(g=>{
+      const item = document.createElement('div');
+      item.className='legend-item';
+      item.innerHTML=`<div class="legend-dot" style="background:${GEN_COLORS[g]}"></div>Gen ${g}`;
+      legend.appendChild(item);
+    });
+  } else {
+    const tiers = [
+      {k:'Weak (<300)',c:'#607d8b',l:'Weak'},
+      {k:'Below Average (300-399)',c:'#4caf50',l:'Below Avg'},
+      {k:'Average (400-499)',c:'#f5a623',l:'Average'},
+      {k:'Strong (500-599)',c:'#e94560',l:'Strong'},
+      {k:'Legendary/Pseudo (600+)',c:'#ab47bc',l:'Legendary'},
+    ];
+    tiers.forEach(t=>{
+      const item = document.createElement('div');
+      item.className='legend-item';
+      item.innerHTML=`<div class="legend-dot" style="background:${t.c}"></div>${t.l}`;
+      legend.appendChild(item);
+    });
+  }
+}
+
+function switchTabDirect(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    const tabs = ['charts','dex','compare'];
+    b.classList.toggle('active', tabs[i]===tab);
+  });
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('section-'+tab).classList.add('active');
+  if(tab==='dex' && !dexBuilt) buildDex();
+}
+
+// ============================================================
+//  POKÉDEX
+// ============================================================
+let dexBuilt = false;
+let selectedPoke = null;
+let activeType = null;
+
+function buildDex() {
+  dexBuilt = true;
+  buildTypeFilters();
+  renderGrid(DATA);
+}
+
+function buildTypeFilters() {
+  const row = document.getElementById('type-filter-row');
+  const allBtn = document.createElement('button');
+  allBtn.className = 'type-pill active';
+  allBtn.textContent = 'All';
+  allBtn.style.background = 'var(--border)';
+  allBtn.style.color = 'var(--text)';
+  allBtn.onclick = ()=>{ activeType=null; allBtn.classList.add('active');
+    document.querySelectorAll('.type-pill:not(:first-child)').forEach(p=>p.classList.remove('active'));
+    filterDex(); };
+  row.appendChild(allBtn);
+
+  TYPES.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.className='type-pill';
+    btn.textContent=t;
+    btn.style.background=TYPE_COLORS[t]+'33';
+    btn.style.borderColor=TYPE_COLORS[t];
+    btn.style.color=TYPE_COLORS[t];
+    btn.onclick=()=>{
+      activeType = activeType===t ? null : t;
+      document.querySelectorAll('.type-pill').forEach(p=>p.classList.remove('active'));
+      if(activeType) btn.classList.add('active');
+      else allBtn.classList.add('active');
+      filterDex();
+    };
+    row.appendChild(btn);
+  });
+}
+
+function filterDex() {
+  const q = document.getElementById('dex-search').value.toLowerCase().trim();
+  const gen = document.getElementById('dex-gen').value;
+  const tier = document.getElementById('dex-tier').value;
+  const sort = document.getElementById('dex-sort').value;
+
+  let filtered = DATA.filter(d=>{
+    if(q && !d.name.toLowerCase().includes(q) && !String(d.pokedex_id).includes(q)) return false;
+    if(gen!=='all' && d.generation!==gen) return false;
+    if(tier!=='all' && !d.stat_tier.includes(tier)) return false;
+    if(activeType && d.type_1!==activeType && d.type_2!==activeType) return false;
+    return true;
+  });
+
+  if(sort==='name') filtered.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sort==='bst') filtered.sort((a,b)=>b.base_stat_total-a.base_stat_total);
+  else if(sort==='gen') filtered.sort((a,b)=>GENS.indexOf(a.generation)-GENS.indexOf(b.generation)||a.pokedex_id-b.pokedex_id);
+  else filtered.sort((a,b)=>a.pokedex_id-b.pokedex_id);
+
+  renderGrid(filtered);
+}
+
+function renderGrid(pokes) {
+  const grid = document.getElementById('pokemon-grid');
+  grid.innerHTML='';
+
+  if(!pokes.length) {
+    const empty = document.createElement('div');
+    empty.className='empty-grid';
+    empty.textContent='NO POKÉMON FOUND';
+    grid.appendChild(empty);
+    return;
+  }
+
+  pokes.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='poke-card';
+    if(selectedPoke && selectedPoke.pokedex_id===p.pokedex_id) card.classList.add('selected');
+
+    const typeColor = TYPE_COLORS[p.type_1]||'#888';
+    const glow = document.createElement('div');
+    glow.className='poke-card-glow';
+    glow.style.background=`radial-gradient(circle at 50% 80%, ${typeColor}22, transparent 70%)`;
+    card.appendChild(glow);
+
+    card.style.borderTop=`2px solid ${typeColor}55`;
+
+    const badges = `<span class="type-badge" style="background:${typeColor}">${p.type_1}</span>`+
+      (p.type_2?`<span class="type-badge" style="background:${TYPE_COLORS[p.type_2]||'#888'}">${p.type_2}</span>`:'');
+
+    const specials = (p.is_legendary?'⭐':'')+(p.is_mythical?'✨':'')+(p.is_baby?'🥚':'');
+
+    card.innerHTML+=`
+      <div class="poke-num">#${String(p.pokedex_id).padStart(4,'0')}</div>
+      <img class="poke-sprite" src="${p.sprite_url}" alt="${p.name}" loading="lazy"
+        onerror="this.style.opacity='0.3';this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\'/>'">
+      <div class="poke-name">${p.name.replace(/-/g,' ')}</div>
+      <div class="poke-types">${badges}</div>
+      ${specials?`<div class="special-badge" title="${p.is_legendary?'Legendary':''}${p.is_mythical?' Mythical':''}${p.is_baby?' Baby':''}">${specials}</div>`:''}
+    `;
+    card.onclick=()=>openPokemon(p);
+    grid.appendChild(card);
+  });
+}
+
+function openPokemon(p) {
+  selectedPoke = p;
+  document.querySelectorAll('.poke-card').forEach(c=>c.classList.remove('selected'));
+  const cards = document.querySelectorAll('.poke-card');
+  // find and mark selected card
+  cards.forEach(c=>{
+    const num = c.querySelector('.poke-num')?.textContent;
+    if(num && parseInt(num.replace('#',''))===p.pokedex_id) c.classList.add('selected');
+  });
+  renderDetail(p);
+}
+
+function renderDetail(p) {
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('empty');
+
+  const typeColor = TYPE_COLORS[p.type_1]||'#888';
+  const STAT_MAX = {hp:255, attack:190, defense:230, sp_attack:194, sp_defense:230, speed:180};
+
+  const statBars = ['hp','attack','defense','sp_attack','sp_defense','speed'].map(s=>{
+    const pct = Math.min(100,(p[s]/(STAT_MAX[s]||255))*100);
+    const col = STAT_COLORS[s];
+    const label = {hp:'HP',attack:'ATK',defense:'DEF',sp_attack:'SpATK',sp_defense:'SpDEF',speed:'SPD'}[s];
+    return `<div class="stat-row">
+      <div class="stat-label">${label}</div>
+      <div class="stat-val">${p[s]}</div>
+      <div class="stat-bar-bg">
+        <div class="stat-bar-fill" style="width:${pct}%;background:${col}" data-pct="${pct}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const abilities = [
+    p.ability_1?`<span class="ability-chip">${p.ability_1}</span>`:'',
+    p.ability_2?`<span class="ability-chip">${p.ability_2}</span>`:'',
+    p.hidden_ability?`<span class="ability-chip hidden">★ ${p.hidden_ability}</span>`:'',
+  ].filter(Boolean).join('');
+
+  const specials = [];
+  if(p.is_legendary) specials.push('⭐ Legendary');
+  if(p.is_mythical) specials.push('✨ Mythical');
+  if(p.is_baby) specials.push('🥚 Baby');
+
+  panel.innerHTML=`
+    <div class="detail-header">
+      <div class="detail-header-bg" style="color:${typeColor}"></div>
+      <div class="detail-num">#${String(p.pokedex_id).padStart(4,'0')} — Gen ${p.generation}</div>
+      <div class="detail-name">${p.name.replace(/-/g,' ')}</div>
+      <div class="detail-genus">${p.genus||''}</div>
+      ${specials.length?`<div style="margin-top:6px;font-size:11px;color:var(--accent2)">${specials.join(' · ')}</div>`:''}
+    </div>
+    <div class="detail-sprite-wrap">
+      <img class="detail-sprite" src="${p.sprite_url}" alt="${p.name}"
+        onerror="this.style.opacity='0.2'">
+    </div>
+    <div class="detail-body">
+      <div class="detail-types">
+        <span class="detail-type-badge" style="background:${typeColor}">${p.type_1}</span>
+        ${p.type_2?`<span class="detail-type-badge" style="background:${TYPE_COLORS[p.type_2]||'#888'}">${p.type_2}</span>`:''}
+      </div>
+      ${p.description?`<div class="detail-desc">"${p.description}"</div>`:''}
+
+      <div class="detail-section-title">Base Stats</div>
+      ${statBars}
+      <div class="stat-total-row">
+        <div class="stat-total-label">Total</div>
+        <div class="stat-val" style="font-size:14px;color:var(--accent2)">${p.base_stat_total}</div>
+        <div class="stat-bar-bg">
+          <div class="stat-bar-fill" style="width:${Math.min(100,p.base_stat_total/780*100).toFixed(1)}%;background:linear-gradient(90deg,var(--accent),var(--accent2))"></div>
+        </div>
+      </div>
+
+      <div class="detail-section-title">Info</div>
+      <div class="detail-info-grid">
+        <div class="info-cell"><div class="info-cell-label">Height</div><div class="info-cell-val">${p.height_m} m</div></div>
+        <div class="info-cell"><div class="info-cell-label">Weight</div><div class="info-cell-val">${p.weight_kg} kg</div></div>
+        <div class="info-cell"><div class="info-cell-label">Color</div><div class="info-cell-val">${p.color||'—'}</div></div>
+        <div class="info-cell"><div class="info-cell-label">Stat Tier</div><div class="info-cell-val" style="font-size:10px">${p.stat_tier?.split('(')[0]?.trim()||'—'}</div></div>
+      </div>
+
+      <div class="detail-section-title">Abilities</div>
+      <div class="ability-row">${abilities||'—'}</div>
+
+      <button class="clear-btn" style="width:100%;margin-top:8px;font-size:12px;padding:8px;"
+        onclick="addToCompare(${p.pokedex_id-1})">⚔️ Compare this Pokémon</button>
+    </div>
+  `;
+
+  // Animate stat bars
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.stat-bar-fill').forEach(b=>{
+      const pct = b.dataset.pct;
+      b.style.width='0%';
+      requestAnimationFrame(()=>{ b.style.width=pct+'%'; });
+    });
+  });
+}
+
+// ============================================================
+//  COMPARE
+// ============================================================
+let compareSlots = [null, null];
+let selectingSlot = -1;
+let miniGridBuilt = false;
+
+function addToCompare(idx) {
+  if(idx>=0 && idx<DATA.length) {
+    const slot = compareSlots[0]===null ? 0 : 1;
+    compareSlots[slot] = DATA[idx];
+    switchTabDirect('compare');
+    buildMiniGrid();
+    renderCompareStats();
+    renderCompareSlots();
+  }
+}
+
+function startCompareSelect(slot) {
+  if(compareSlots[slot]!==null) {
+    // clicking filled slot clears it
+    compareSlots[slot]=null;
+    renderCompareSlots();
+    renderCompareStats();
+    return;
+  }
+  selectingSlot = slot;
+  document.getElementById('compare-slot-num').textContent=slot+1;
+  document.getElementById('compare-overlay').classList.add('visible');
+  document.getElementById('compare-mini-search-wrap').style.display='block';
+  buildMiniGrid();
+}
+
+function cancelCompare() {
+  selectingSlot=-1;
+  document.getElementById('compare-overlay').classList.remove('visible');
+  document.getElementById('compare-mini-search-wrap').style.display = compareSlots.some(s=>s!==null)?'block':'none';
+}
+
+function buildMiniGrid() {
+  if(!miniGridBuilt) {
+    miniGridBuilt=true;
+    filterMiniGrid();
+  }
+}
+
+function filterMiniGrid() {
+  const q = (document.getElementById('compare-search')?.value||'').toLowerCase().trim();
+  const grid = document.getElementById('compare-mini-grid');
+  grid.innerHTML='';
+  const filtered = DATA.filter(d=>!q||d.name.toLowerCase().includes(q)||String(d.pokedex_id).includes(q)).slice(0,120);
+  filtered.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='poke-card';
+    if(compareSlots.some(s=>s&&s.pokedex_id===p.pokedex_id)) card.classList.add('selected');
+    const typeColor = TYPE_COLORS[p.type_1]||'#888';
+    card.style.borderTop=`2px solid ${typeColor}55`;
+    card.innerHTML=`
+      <div class="poke-num">#${String(p.pokedex_id).padStart(3,'0')}</div>
+      <img class="poke-sprite" src="${p.sprite_url}" alt="${p.name}" loading="lazy" onerror="this.style.opacity='0.2'">
+      <div class="poke-name">${p.name.replace(/-/g,' ')}</div>
+    `;
+    card.onclick=()=>{
+      if(selectingSlot>=0) {
+        compareSlots[selectingSlot]=p;
+        selectingSlot=-1;
+        document.getElementById('compare-overlay').classList.remove('visible');
+      } else {
+        const emptySlot = compareSlots.findIndex(s=>s===null);
+        if(emptySlot>=0) compareSlots[emptySlot]=p;
+        else compareSlots[1]=p;
+      }
+      renderCompareSlots();
+      renderCompareStats();
+      filterMiniGrid();
+    };
+    grid.appendChild(card);
+  });
+}
+
+function renderCompareSlots() {
+  [0,1].forEach(i=>{
+    const slot = document.getElementById(`compare-slot-${i}`);
+    const p = compareSlots[i];
+    if(p) {
+      slot.classList.add('filled');
+      slot.innerHTML=`
+        <img src="${p.sprite_url}" alt="${p.name}" onerror="this.style.opacity='0.2'">
+        <div class="compare-slot-name">${p.name.replace(/-/g,' ')}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:3px">#${p.pokedex_id} · Gen ${p.generation}</div>
+        <div style="display:flex;gap:4px;justify-content:center;margin-top:6px">
+          <span class="type-badge" style="background:${TYPE_COLORS[p.type_1]||'#888'}">${p.type_1}</span>
+          ${p.type_2?`<span class="type-badge" style="background:${TYPE_COLORS[p.type_2]||'#888'}">${p.type_2}</span>`:''}
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:6px;">Click to remove</div>
+      `;
+    } else {
+      slot.classList.remove('filled');
+      slot.innerHTML=`<div style="font-size:32px;">➕</div><div class="compare-slot-hint">Click to select Pokémon ${i+1}</div>`;
+    }
+  });
+}
+
+function renderCompareStats() {
+  const area = document.getElementById('compare-stats-area');
+  if(!compareSlots[0] || !compareSlots[1]) {
+    area.innerHTML='';
+    return;
+  }
+  const [a,b] = compareSlots;
+  const stats = [
+    {key:'hp',label:'HP'},
+    {key:'attack',label:'Attack'},
+    {key:'defense',label:'Defense'},
+    {key:'sp_attack',label:'Sp. Atk'},
+    {key:'sp_defense',label:'Sp. Def'},
+    {key:'speed',label:'Speed'},
+    {key:'base_stat_total',label:'BST'},
+  ];
+
+  const MAX = {hp:255,attack:190,defense:230,sp_attack:194,sp_defense:230,speed:180,base_stat_total:780};
+
+  const rows = stats.map(s=>{
+    const av=a[s.key], bv=b[s.key];
+    const aWin=av>bv, bWin=bv>av;
+    const maxV = MAX[s.key]||780;
+    const aPct=Math.min(100,av/maxV*100), bPct=Math.min(100,bv/maxV*100);
+    const aCol=STAT_COLORS[s.key]||'var(--accent)';
+    const bCol=STAT_COLORS[s.key]||'var(--accent3)';
+    return `<div class="compare-stat-row">
+      <div class="compare-bar-wrap"><div class="compare-bar left" style="width:${aPct}%;background:${aCol}"></div></div>
+      <div class="compare-val ${aWin?'winner':''}">${av}</div>
+      <div class="compare-stat-label">${s.label}</div>
+      <div class="compare-val ${bWin?'winner':''}">${bv}</div>
+      <div class="compare-bar-wrap"><div class="compare-bar" style="width:${bPct}%;background:${aCol}"></div></div>
+    </div>`;
+  }).join('');
+
+  area.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr auto auto 1fr;gap:8px;align-items:center;margin-bottom:8px;font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;">
+      <div style="text-align:right">${a.name.replace(/-/g,' ')}</div>
+      <div></div>
+      <div style="text-align:center">STAT</div>
+      <div>${b.name.replace(/-/g,' ')}</div>
+    </div>
+    <div class="compare-stat-grid">${rows}</div>
+    <div style="margin-top:14px;font-size:11px;color:var(--text2);text-align:center;">
+      ${a.name.replace(/-/g,' ')} wins <b style="color:var(--accent2)">${stats.filter(s=>a[s.key]>b[s.key]).length}</b> stats ·
+      ${b.name.replace(/-/g,' ')} wins <b style="color:var(--accent2)">${stats.filter(s=>b[s.key]>a[s.key]).length}</b> stats
+    </div>
+  `;
+}
+
+function clearComparison() {
+  compareSlots=[null,null];
+  renderCompareSlots();
+  renderCompareStats();
+  filterMiniGrid();
+  cancelCompare();
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener('load',()=>{
+  buildCharts();
+});
+
+window.addEventListener('resize', ()=>{
+  if(chartsBuilt){
+    renderLineChart();
+    renderDonutChart();
+    renderBarChart();
+    renderScatter();
+  }
+});
+</script>
+</body>
+</html>
